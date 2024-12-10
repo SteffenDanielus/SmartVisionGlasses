@@ -1,6 +1,9 @@
 #This module handles the camera and obtains the images for processing
 from time import sleep
-from cv2 import *
+from cv2 import imshow
+from cv2 import VideoCapture
+from cv2 import imwrite
+import cv2
 class VisionCamera:
     def __init__(self, width, height) -> None:
         self.width = width
@@ -15,3 +18,10 @@ class VisionCamera:
             print("Takeing samples...")
             print("Sleeping for: " + str(1.0/frequency))
             sleep(1.0/frequency)
+            cam = VideoCapture(0)
+            result, image = cam.read()
+            if result:
+                imshow("sd", image)
+                imwrite("testimage.png", image, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                cv2.destroyAllWindows()
+                break
