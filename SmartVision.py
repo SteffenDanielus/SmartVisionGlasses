@@ -1,5 +1,4 @@
 from VisionCamera import VisionCamera
 
-
-camera = VisionCamera(10, 10)
-camera.record(1)
+camera = VisionCamera(1280, 720)
+camera.record(30)
