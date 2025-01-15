@@ -2,8 +2,10 @@ import os
 import openai
 from openai import OpenAI
 import re
+import datetime
 
 # Set your OpenAI API key
+OPENAI_API_KEY = "insert-api-key-here"
 
 # Initialize the OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -21,16 +23,13 @@ def refine_text_with_openai(input_text):
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert text editor. Fill in missing words, correct grammar and spelling, and make the text as clear as possible. Give one output that is the most logical."
-                },
-                {
-                    "role": "user",
-                    "content": input_text
-                }
-            ],
+            messages=[{
+                "role": "system",
+                "content": "You are an expert text editor. Fill in missing words, correct grammar and spelling, and make the text as clear as possible. Give one output that is the most logical."
+            },{
+                "role": "user",
+                "content": input_text
+            }],
             max_tokens=2048,
             temperature=0.7
         )
@@ -93,8 +92,12 @@ if combined_text:
     # Refine the combined text
     refined_text = refine_text_with_openai(combined_text)
     
+    # Generate a unique output file name based on timestamp
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    output_filename = f"refined_combined_text_{timestamp}.txt"
+    output_path = os.path.join(refined_dir, output_filename)
+
     # Save the refined text
-    output_path = os.path.join(refined_dir, "refined_combined_text.txt")
     with open(output_path, "w", encoding="utf-8") as file:
         file.write(refined_text)
     
