@@ -9,6 +9,7 @@ import threading
 import torch
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+import subprocess  # Import the subprocess module to call the external script
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
@@ -43,30 +44,21 @@ recent_texts = deque(maxlen=5)
 frame = None
 frame_lock = threading.Lock()
 
-# Variables to detect if the frame has changed significantly
-prev_frame = None
-frame_change_threshold = 1000000  # Change threshold (adjust based on testing)
-
 def get_text_embedding(text):
-    """Generate an embedding for the text using the T5 model."""
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
     with torch.no_grad():
         outputs = model.encoder(input_ids=inputs["input_ids"]).last_hidden_state
-    # Use the mean of the embeddings as the text representation
     embedding = outputs.mean(dim=1).squeeze().numpy()
     return embedding
 
 def generate_coherence_score(text1, text2):
-    """Generate a coherence score based on cosine similarity of embeddings."""
     embedding1 = get_text_embedding(text1)
     embedding2 = get_text_embedding(text2)
     
-    # Compute cosine similarity between embeddings
     similarity = cosine_similarity([embedding1], [embedding2])[0][0]
     return similarity
 
 def select_best_text():
-    """Select the best text based on coherence using T5 embeddings."""
     # Get the last 5 files in the output folder
     output_files = sorted(os.listdir(output_dir), reverse=True)[:5]
     
@@ -97,9 +89,18 @@ def select_best_text():
         return best_text
     return None
 
+def call_error_correction_script(best_text_file_path):
+    """Call the error_correction.py script using subprocess."""
+    try:
+        # Running error_correction.py as a subprocess
+        subprocess.run(['python', 'error_correction.py', best_text_file_path], check=True)
+        print(f"Error correction script executed successfully for {best_text_file_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing error_correction.py: {e}")
+
 def capture_frames():
     """Capture frames from the video feed in a separate thread."""
-    global frame, prev_frame
+    global frame
     while True:
         ret, captured_frame = cap.read()
         if not ret:
@@ -109,24 +110,6 @@ def capture_frames():
         # Lock the frame to safely update it from the main thread
         with frame_lock:
             frame = captured_frame
-
-            # Convert the frame to grayscale
-            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-            if prev_frame is not None:
-                # Compute absolute difference between the current and previous frame
-                frame_diff = cv2.absdiff(prev_frame, gray_frame)
-
-                # Sum up the differences to calculate a score
-                diff_sum = np.sum(frame_diff)
-
-                # If the difference is smaller than the threshold, consider the frames as unchanged
-                if diff_sum < frame_change_threshold:
-                    print("No significant change detected in the frame.")
-                    continue  # Skip processing this frame, no need to process further
-
-            # Update the previous frame for the next iteration
-            prev_frame = gray_frame
 
 # Start the frame capture thread
 capture_thread = threading.Thread(target=capture_frames, daemon=True)
@@ -182,6 +165,9 @@ try:
                                 best_text_file.write(best_text)
                             print(f"Best coherent text saved to {best_text_path}")
 
+                            # Call error_correction.py after saving the best text
+                            call_error_correction_script(best_text_path)
+
                             # Clear the deque after evaluation
                             recent_texts.clear()
 
@@ -197,7 +183,6 @@ finally:
     cap.release()
     cv2.destroyAllWindows()
 
-    # Clean up: delete the frames directory and its contents
     if os.path.exists(frames_dir):
         shutil.rmtree(frames_dir)
         print("Deleted frames directory.")
